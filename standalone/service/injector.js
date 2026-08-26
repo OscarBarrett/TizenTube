@@ -4,6 +4,7 @@ const adbhost = require('adbhost');
 const CDP = require('chrome-remote-interface');
 const fetch = require('node-fetch');
 const userscript = require('./userscript.js');
+const spoof = require('./spoof.js');
 
 
 var isConnecting = false;
@@ -15,8 +16,11 @@ function connectToDebugger(host, port, args) {
             isConnecting = false;
             client.Runtime.enable();
             client.Page.enable();
+            client.Network.enable();
 
             client.on('Runtime.executionContextCreated', m => {
+                // Inject the diagnostic overlay first so it captures early errors.
+                client.Runtime.evaluate({ expression: spoof.OVERLAY_EXPR, contextId: m.context.id }).catch(() => {});
                 userscript.refreshVersion().then(() => fetch(userscript.userscriptUrl())).then(res => res.text()).then(modFile => {
                     client.Runtime.evaluate({ expression: modFile, contextId: m.context.id });
                 }).catch(e => {
@@ -24,9 +28,18 @@ function connectToDebugger(host, port, args) {
                 });
             });
 
-            client.Page.navigate({ url: `https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube${args ? `&${args}` : ''}` });
+            // Spoof the user agent at the debugger level so YouTube serves the desired variant,
+            // then navigate. The webview parses the (large) response headers natively.
+            const applyUAOverride = spoof.SPOOF_MODE
+                ? client.Runtime.evaluate({ expression: 'navigator.userAgent', returnByValue: true })
+                    .then(r => client.Network.setUserAgentOverride({ userAgent: spoof.spoofUserAgent(r && r.result && r.result.value) }))
+                    .catch(() => client.Network.setUserAgentOverride({ userAgent: spoof.spoofUserAgent('') }))
+                : Promise.resolve();
 
-            client.Page.setBypassCSP({ enabled: true });
+            applyUAOverride.then(() => {
+                client.Page.navigate({ url: `https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube${args ? `&${args}` : ''}` });
+                client.Page.setBypassCSP({ enabled: true });
+            });
         })
     }).catch(e => {
         return setTimeout(() => connectToDebugger(host, port, args), 100);

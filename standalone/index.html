@@ -80,35 +80,26 @@
             } catch (e) {
                 // Do nothing.
             }
-            // Cobalt experiment: always use the proxy path so the proxy's UA spoof and
-            // diagnostics apply. Fetch /tv ourselves first and report each step on screen,
-            // so a failure is visible from the shell (which always renders).
-            var tvUrl = `http://localhost:8199/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8195%2Fdial%2Fapps%2FYouTube${args ? `&${args}` : ''}`;
             ttlog('getState...');
             fetch('http://localhost:8199/tizentube/getState')
                 .then(r => r.json())
-                .then((state) => {
-                    ttlog('getState ok: ' + JSON.stringify(state).slice(0, 120));
-                    ttlog('fetching /tv to test proxy...');
-                    return fetch(tvUrl);
-                })
-                .then((r) => {
-                    ttlog('/tv status ' + r.status + ' type ' + (r.headers.get('content-type') || '?'));
-                    return r.text().then(function (body) { return { status: r.status, body: body }; });
-                })
-                .then((res) => {
-                    if (res.status !== 200) {
-                        ttlog('/tv BODY: ' + res.body.slice(0, 400));
-                        ttlog('not navigating (status ' + res.status + ')');
-                        return;
+                .then(res => {
+                    ttlog('getState ok: ' + JSON.stringify(res).slice(0, 120));
+                    if (res.canConnectToDaemon && !res.isConnecting) {
+                        ttlog('injector path: relaunching in debug + CDP UA override');
+                        fetch(`http://localhost:8199/tizentube/debugger${args ? `?${args}` : ''}`);
+                        tizen.application.getCurrentApplication().exit();
+                    } else if (!res.canConnectToDaemon) {
+                        ttlog('proxy path: navigating to /tv');
+                        location.href = `http://localhost:8199/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8195%2Fdial%2Fapps%2FYouTube${args ? `&${args}` : ''}`;
+                    } else {
+                        ttlog('waiting: daemon connecting...');
+                        setTimeout(useInjectorOrProxy, 500);
                     }
-                    ttlog('/tv html bytes ' + res.body.length + ' hasOverlay ' + (res.body.indexOf('tt-debug') !== -1) + ' hasHead ' + (res.body.indexOf('<head>') !== -1));
-                    ttlog('navigating in 6s...');
-                    setTimeout(function () { location.href = tvUrl; }, 6000);
                 })
                 .catch((e) => {
-                    ttlog('ERROR: ' + (e && e.message ? e.message : e));
-                    setTimeout(useInjectorOrProxy, 3000);
+                    ttlog('getState failed, retry: ' + (e && e.message ? e.message : e));
+                    setTimeout(useInjectorOrProxy, 300);
                 });
         }
 
