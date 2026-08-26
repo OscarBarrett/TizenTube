@@ -163,10 +163,15 @@ class CaptionStyleHandler {
 
     #saveCaptionsEnabled() {
         if (!configRead(CONFIG_KEYS.ENABLED)) return;
+        if (!this.#getTracklist().length) return;
 
-        const captionsOn = this.#player?.isSubtitlesOn?.();
+        let captionsOn;
+        try {
+            captionsOn = this.#player.isSubtitlesOn();
+        } catch (e) {
+            return;
+        }
         if (typeof captionsOn !== 'boolean') return;
-        if (!captionsOn && !this.#getTracklist().length) return;
 
         if (captionsOn !== configRead(CONFIG_KEYS.CAPTIONS_ON)) {
             configWrite(CONFIG_KEYS.CAPTIONS_ON, captionsOn);
@@ -185,11 +190,13 @@ class CaptionStyleHandler {
 
         this.#captionsRestored = true;
 
-        try {
-            if (!this.#player.isSubtitlesOn()) this.#player.toggleSubtitlesOn();
-        } catch (e) {
-            console.warn('[CaptionStyle] Failed to restore captions:', e);
-        }
+        setTimeout(() => {
+            try {
+                if (!this.#player.isSubtitlesOn()) this.#player.toggleSubtitlesOn();
+            } catch (e) {
+                console.warn('[CaptionStyle] Failed to restore captions:', e);
+            }
+        }, 0);
     }
 
     #tryApplyStyle = () => {
