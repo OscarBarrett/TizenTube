@@ -25,8 +25,7 @@ const YT_KEYS = [
     'yt-player-caption-sticky-language',
 ];
 
-const CAPTION_COMMAND_KEY = /subtitle|caption/i;
-const CAPTION_COMMAND_MAX_DEPTH = 6;
+const CAPTION_COMMAND_KEY = /^[a-z]*(subtitles?|captions?)[a-z]*(command|endpoint|action)$/i;
 
 const FAR_FUTURE_MS = 10 * 365 * 24 * 60 * 60 * 1000;
 const SAVE_DEBOUNCE_MS = 500;
@@ -63,8 +62,8 @@ function restoreAndRefreshRawKeys() {
     if (backupsChanged) configWrite(CONFIG_KEYS.RAW_BACKUPS, backups);
 }
 
-function findCaptionCommand(cmd, depth = 0) {
-    if (!cmd || typeof cmd !== 'object' || depth > CAPTION_COMMAND_MAX_DEPTH) return null;
+function findCaptionCommand(cmd, nested = false) {
+    if (!cmd || typeof cmd !== 'object') return null;
 
     for (const key in cmd) {
         if (CAPTION_COMMAND_KEY.test(key) && cmd[key] && typeof cmd[key] === 'object') {
@@ -72,9 +71,12 @@ function findCaptionCommand(cmd, depth = 0) {
         }
     }
 
-    for (const key in cmd) {
-        const found = findCaptionCommand(cmd[key], depth + 1);
-        if (found) return found;
+    const commands = cmd.commandExecutorCommand?.commands;
+    if (!nested && Array.isArray(commands)) {
+        for (const command of commands) {
+            const found = findCaptionCommand(command, true);
+            if (found) return found;
+        }
     }
 
     return null;
@@ -242,7 +244,11 @@ class CaptionStyleHandler {
         if (this.#captionsRestored || !configRead(CONFIG_KEYS.ENABLED)) return;
 
         const command = configRead(CONFIG_KEYS.CAPTIONS_ON_COMMAND);
-        if (configRead(CONFIG_KEYS.CAPTIONS_ON) !== true || !command || !this.#resolveCommand) {
+        if (command && !findCaptionCommand(command)) {
+            configWrite(CONFIG_KEYS.CAPTIONS_ON_COMMAND, null);
+            configWrite(CONFIG_KEYS.CAPTIONS_ON, null);
+        }
+        if (configRead(CONFIG_KEYS.CAPTIONS_ON) !== true || !configRead(CONFIG_KEYS.CAPTIONS_ON_COMMAND) || !this.#resolveCommand) {
             this.#captionsRestored = true;
             return;
         }
