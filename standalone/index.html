@@ -60,6 +60,13 @@
             tizen.tvinputdevice.registerKey(keys[i]);
         }
 
+        window.ttlog = function (m) {
+            try {
+                var el = document.getElementById('tt-shell-log');
+                if (el) el.textContent += '\n' + new Date().toISOString().substr(11, 8) + ' ' + m;
+            } catch (e) { }
+        };
+
         const pkgId = tizen.application.getCurrentApplication().appInfo.packageId;
 
         const serviceId = pkgId + ".StandaloneService";
@@ -74,13 +81,30 @@
                 // Do nothing.
             }
             // Cobalt experiment: always use the proxy path so the proxy's UA spoof and
-            // diagnostics apply (the injector path loads real youtube.com and bypasses them).
-            // Still poll getState so we only navigate once the service is listening.
+            // diagnostics apply. Fetch /tv ourselves first and report each step on screen,
+            // so a failure is visible from the shell (which always renders).
+            var tvUrl = `http://localhost:8199/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8195%2Fdial%2Fapps%2FYouTube${args ? `&${args}` : ''}`;
+            ttlog('getState...');
             fetch('http://localhost:8199/tizentube/getState')
                 .then(r => r.json())
-                .then(() => {
-                    location.href = `http://localhost:8199/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8195%2Fdial%2Fapps%2FYouTube${args ? `&${args}` : ''}`
-                }).catch(() => setTimeout(useInjectorOrProxy, 200));
+                .then((state) => {
+                    ttlog('getState ok: ' + JSON.stringify(state).slice(0, 120));
+                    ttlog('fetching /tv to test proxy...');
+                    return fetch(tvUrl);
+                })
+                .then((r) => {
+                    ttlog('/tv status ' + r.status + ' type ' + (r.headers.get('content-type') || '?'));
+                    return r.text();
+                })
+                .then((html) => {
+                    ttlog('/tv html bytes ' + html.length + ' hasOverlay ' + (html.indexOf('tt-debug') !== -1) + ' hasHead ' + (html.indexOf('<head>') !== -1));
+                    ttlog('navigating in 6s...');
+                    setTimeout(function () { location.href = tvUrl; }, 6000);
+                })
+                .catch((e) => {
+                    ttlog('ERROR: ' + (e && e.message ? e.message : e));
+                    setTimeout(useInjectorOrProxy, 3000);
+                });
         }
 
         tizen.application.launchAppControl(
@@ -105,6 +129,8 @@
     <div class="progress-container">
         <div class="progress-bar"></div>
     </div>
+    <div id="tt-shell-log"
+        style="position:fixed;bottom:0;left:0;right:0;max-height:50%;overflow:hidden;color:#0f0;background:rgba(0,0,0,.7);font:22px monospace;padding:10px;white-space:pre-wrap;text-align:left;">shell log</div>
 </body>
 
 </html>
