@@ -143,7 +143,9 @@ class CaptionStyleHandler {
     #getTracklist() {
         try {
             const tracklist = this.#player?.getOption?.('captions', 'tracklist');
-            return Array.isArray(tracklist) ? tracklist : [];
+            if (Array.isArray(tracklist) && tracklist.length) return tracklist;
+            const captionTracks = this.#player?.getPlayerResponse?.()?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+            return Array.isArray(captionTracks) ? captionTracks : [];
         } catch (e) {
             return [];
         }
