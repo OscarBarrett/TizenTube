@@ -81,17 +81,17 @@
                 // Do nothing.
             }
             ttlog('getState...');
-            fetch('http://localhost:8199/tizentube/getState')
+            fetch('http://localhost:8099/tizentube/getState')
                 .then(r => r.json())
                 .then(res => {
                     ttlog('getState ok: ' + JSON.stringify(res).slice(0, 120));
                     if (res.canConnectToDaemon && !res.isConnecting) {
                         ttlog('injector path: relaunching in debug + CDP UA override');
-                        fetch(`http://localhost:8199/tizentube/debugger${args ? `?${args}` : ''}`);
+                        fetch(`http://localhost:8099/tizentube/debugger${args ? `?${args}` : ''}`);
                         tizen.application.getCurrentApplication().exit();
                     } else if (!res.canConnectToDaemon) {
                         ttlog('proxy path: navigating to /tv');
-                        location.href = `http://localhost:8199/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8195%2Fdial%2Fapps%2FYouTube${args ? `&${args}` : ''}`;
+                        location.href = `http://localhost:8099/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8095%2Fdial%2Fapps%2FYouTube${args ? `&${args}` : ''}`;
                     } else {
                         ttlog('waiting: daemon connecting...');
                         setTimeout(useInjectorOrProxy, 500);
@@ -101,8 +101,8 @@
                     window.__gsFails = (window.__gsFails || 0) + 1;
                     ttlog('getState failed #' + window.__gsFails + ': ' + (e && e.message ? e.message : e));
                     if (window.__gsFails === 4) {
-                        ttlog('querying diag server on 8299...');
-                        fetch('http://localhost:8299/')
+                        ttlog('querying diag server on 8199...');
+                        fetch('http://localhost:8199/')
                             .then(r => r.json())
                             .then(d => ttlog('DIAG: stage=' + d.stage + ' listen8199=' + d.listen8199 + ' errors=' + JSON.stringify(d.errors).slice(0, 260)))
                             .catch(err => ttlog('DIAG unreachable too: ' + (err && err.message ? err.message : err) + ' (service process not running)'));
