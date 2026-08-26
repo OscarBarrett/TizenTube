@@ -25,6 +25,11 @@ const YT_KEYS = [
     'yt-player-caption-sticky-language',
 ];
 
+const PLAYER_STATES = {
+    PLAYING: 1,
+    PAUSED: 2,
+};
+
 const FAR_FUTURE_MS = 10 * 365 * 24 * 60 * 60 * 1000;
 const SAVE_DEBOUNCE_MS = 500;
 const APPLY_RETRY_MS = 500;
@@ -151,6 +156,15 @@ class CaptionStyleHandler {
         }
     }
 
+    #isPlaybackActive() {
+        try {
+            const state = this.#player.getPlayerState();
+            return state === PLAYER_STATES.PLAYING || state === PLAYER_STATES.PAUSED;
+        } catch (e) {
+            return false;
+        }
+    }
+
     #saveStyle() {
         if (!configRead(CONFIG_KEYS.ENABLED)) return;
 
@@ -174,6 +188,7 @@ class CaptionStyleHandler {
             return;
         }
         if (typeof captionsOn !== 'boolean') return;
+        if (!captionsOn && !this.#isPlaybackActive()) return;
 
         if (captionsOn !== configRead(CONFIG_KEYS.CAPTIONS_ON)) {
             configWrite(CONFIG_KEYS.CAPTIONS_ON, captionsOn);
