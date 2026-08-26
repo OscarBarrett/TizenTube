@@ -11,8 +11,8 @@ async function build() {
         /if\s*\(\/.*?\/i?\.exec\(urlStr\)\)\s*\{\s*urlStr\s*=\s*new\s+URL\(urlStr\)\.toString\(\);\s*\}/g,
         ''
     ).replace(
-        /(method:\s*request\.method,)/,
-        "$1 maxHeaderSize: 5*1024*1024,"
+        /(return Object\.assign\(\{\}, parsedURL, \{\s*method:\s*request\.method,)/g,
+        "$1 maxHeaderSize: 5*1024*1024, insecureHTTPParser: true,"
     );
 
     const outDir = path.join(__dirname, 'dist');

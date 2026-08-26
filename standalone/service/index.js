@@ -120,7 +120,9 @@ app.all('*', (req, res) => {
         method: req.method,
         headers: headers,
         body: hasBody ? req : undefined,
-        redirect: 'manual'
+        redirect: 'manual',
+        insecureHTTPParser: true,
+        maxHeaderSize: 5 * 1024 * 1024
     };
 
     const isTvPage = req.url.indexOf('/tv') === 0 && req.url.indexOf('/tv_config') === -1;
