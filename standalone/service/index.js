@@ -2,6 +2,20 @@
 
 // TizenTube Standalone service
 
+// --- Diagnostic server: starts FIRST on a separate port, always responds, and
+// captures any startup error so index.html can read why the main service failed.
+var __diag = { stage: 'boot', port: Number(process.env.TT_PORT) || 8199, errors: [], listen8199: 'pending' };
+try {
+    require('http').createServer(function (req, res) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(__diag));
+    }).listen((Number(process.env.TT_PORT) || 8199) + 100, '127.0.0.1');
+    __diag.stage = 'diag-listening';
+} catch (e) { __diag.errors.push('diagserver: ' + String(e)); }
+process.on('uncaughtException', function (e) { __diag.errors.push('uncaught: ' + String(e && e.stack || e).slice(0, 300)); });
+process.on('unhandledRejection', function (e) { __diag.errors.push('reject: ' + String(e && (e.stack || e.message) || e).slice(0, 300)); });
+
 const express = require('express');
 const app = express();
 const PORT = Number(process.env.TT_PORT) || 8199;
@@ -219,14 +233,19 @@ app.all('*', (req, res) => {
 process.on('uncaughtException', (e) => { try { console.error('uncaughtException', e && e.stack || e); } catch (_) {} });
 process.on('unhandledRejection', (e) => { try { console.error('unhandledRejection', e && e.stack || e); } catch (_) {} });
 
+__diag.stage = 'requires-done';
 userscript.refreshVersion();
-app.listen(PORT, "127.0.0.1");
+__diag.stage = 'listen-called';
+app.listen(PORT, "127.0.0.1", function () { __diag.listen8199 = 'ok'; __diag.stage = 'listening'; })
+    .on('error', function (e) { __diag.listen8199 = 'ERROR ' + String(e && (e.code || e.message)); __diag.errors.push('listen8199: ' + String(e && e.stack || e).slice(0, 200)); });
 
 // Start the DIAL server (optional; must never crash the proxy).
 try {
     global.isTizenTube = true;
     global.tizenTubeDialPort = PORT - 4;
     require('../../dist/service.js');
+    __diag.stage = 'dial-started';
 } catch (e) {
+    __diag.errors.push('dial: ' + String(e && e.stack || e).slice(0, 200));
     try { console.error('DIAL server failed to start', e && e.stack || e); } catch (_) {}
 }

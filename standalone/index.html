@@ -98,8 +98,16 @@
                     }
                 })
                 .catch((e) => {
-                    ttlog('getState failed, retry: ' + (e && e.message ? e.message : e));
-                    setTimeout(useInjectorOrProxy, 300);
+                    window.__gsFails = (window.__gsFails || 0) + 1;
+                    ttlog('getState failed #' + window.__gsFails + ': ' + (e && e.message ? e.message : e));
+                    if (window.__gsFails === 4) {
+                        ttlog('querying diag server on 8299...');
+                        fetch('http://localhost:8299/')
+                            .then(r => r.json())
+                            .then(d => ttlog('DIAG: stage=' + d.stage + ' listen8199=' + d.listen8199 + ' errors=' + JSON.stringify(d.errors).slice(0, 260)))
+                            .catch(err => ttlog('DIAG unreachable too: ' + (err && err.message ? err.message : err) + ' (service process not running)'));
+                    }
+                    setTimeout(useInjectorOrProxy, 500);
                 });
         }
 
