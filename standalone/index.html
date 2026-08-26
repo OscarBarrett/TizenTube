@@ -94,10 +94,15 @@
                 })
                 .then((r) => {
                     ttlog('/tv status ' + r.status + ' type ' + (r.headers.get('content-type') || '?'));
-                    return r.text();
+                    return r.text().then(function (body) { return { status: r.status, body: body }; });
                 })
-                .then((html) => {
-                    ttlog('/tv html bytes ' + html.length + ' hasOverlay ' + (html.indexOf('tt-debug') !== -1) + ' hasHead ' + (html.indexOf('<head>') !== -1));
+                .then((res) => {
+                    if (res.status !== 200) {
+                        ttlog('/tv BODY: ' + res.body.slice(0, 400));
+                        ttlog('not navigating (status ' + res.status + ')');
+                        return;
+                    }
+                    ttlog('/tv html bytes ' + res.body.length + ' hasOverlay ' + (res.body.indexOf('tt-debug') !== -1) + ' hasHead ' + (res.body.indexOf('<head>') !== -1));
                     ttlog('navigating in 6s...');
                     setTimeout(function () { location.href = tvUrl; }, 6000);
                 })

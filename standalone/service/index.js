@@ -233,7 +233,7 @@ app.all('*', (req, res) => {
             console.error(`Proxy Error for [${targetUrl}]: ${error}`);
             console.error(error.stack)
             if (!res.headersSent) {
-                res.status(500).send('Proxy Connection Broken');
+                res.status(500).send('Proxy Connection Broken :: ' + targetUrl + ' :: ' + (error && (error.code || '') + ' ' + (error && error.message)));
             }
         });
 });
