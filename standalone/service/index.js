@@ -5,6 +5,7 @@
 const express = require('express');
 const app = express();
 const PORT = 8099;
+const SPOOF_TIZEN_VERSION = '8.0';
 const fetch = require('node-fetch');
 const http = require('http');
 const https = require('https');
@@ -41,6 +42,12 @@ app.get('/tizentube/debugger', (req, res) => {
     }, 50);
 });
 
+function spoofUserAgent(userAgent) {
+    return userAgent
+        .replace(/Tizen \d+(\.\d+)?/, `Tizen ${SPOOF_TIZEN_VERSION}`)
+        .replace(/\/\d+(\.\d+)? TV Safari/, `/${SPOOF_TIZEN_VERSION} TV Safari`);
+}
+
 app.all('*', (req, res) => {
     const isCorsBypass = req.path.indexOf('/cors-bypass/') === 0;
 
@@ -73,6 +80,9 @@ app.all('*', (req, res) => {
     }
 
     headers['origin'] = 'https://www.youtube.com';
+    if (SPOOF_TIZEN_VERSION && headers['user-agent']) {
+        headers['user-agent'] = spoofUserAgent(headers['user-agent']);
+    }
     if (headers['referer']) {
         headers['referer'] = 'https://www.youtube.com/tv';
     }
@@ -140,6 +150,9 @@ app.all('*', (req, res) => {
                     if (req.url.indexOf('/tv') === 0 && req.url.indexOf('/tv_config') === -1) {
                         // Insert the userscript for TizenTube
                         text += `<script src="https://cdn.jsdelivr.net/npm/@oscarbarrett/tizentube/dist/userScript.js?ver=${Date.now()}"></script>`;
+                        if (SPOOF_TIZEN_VERSION && req.headers['user-agent']) {
+                            text = text.replace('<head>', `<head><script>Object.defineProperty(navigator, 'userAgent', { get: function () { return ${JSON.stringify(spoofUserAgent(req.headers['user-agent']))}; } });</script>`);
+                        }
                     }
 
                     const proxyPrefix = `http://localhost:${PORT}/cors-bypass/`;
