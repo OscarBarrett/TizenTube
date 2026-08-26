@@ -4,8 +4,8 @@
 
 const express = require('express');
 const app = express();
-const PORT = 8099;
-const SPOOF_MODE = 'tizen'; // '', 'tizen' or 'cobalt'
+const PORT = 8199;
+const SPOOF_MODE = 'cobalt'; // '', 'tizen' or 'cobalt'
 const SPOOF_TIZEN_VERSION = '8.0';
 const COBALT_VERSION = '24.lts.60.1032993-gold';
 const COBALT_MODEL_YEAR = '2022';
