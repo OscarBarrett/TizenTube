@@ -7,6 +7,7 @@ const SELECTORS = {
 const EVENTS = {
     YT_STATE_CHANGE: 'onStateChange',
     YT_CAPTIONS_SETTINGS_CHANGED: 'captionssettingschanged',
+    YT_CAPTIONS_CHANGED: 'captionschanged',
     YT_CAPTIONS_TRACKLIST_CHANGED: 'onCaptionsTrackListChanged',
     CONFIG_CHANGE: 'configChange',
 };
@@ -14,6 +15,7 @@ const EVENTS = {
 const CONFIG_KEYS = {
     ENABLED: 'enableCaptionStylePersistence',
     STYLE: 'captionStyleSettings',
+    CAPTIONS_ON: 'captionsEnabled',
     RAW_BACKUPS: 'captionRawKeyBackups',
 };
 
@@ -62,6 +64,8 @@ class CaptionStyleHandler {
     #applyTimeout = null;
     #applyAttempts = 0;
     #hasAppliedStyle = false;
+    #lastVideoId = null;
+    #captionsRestored = false;
 
     constructor() {
         this.init();
@@ -85,6 +89,7 @@ class CaptionStyleHandler {
         this.#player = playerElement;
 
         this.#player.addEventListener(EVENTS.YT_CAPTIONS_SETTINGS_CHANGED, this.#handleSettingsChanged);
+        this.#player.addEventListener(EVENTS.YT_CAPTIONS_CHANGED, this.#handleCaptionsChanged);
         this.#player.addEventListener(EVENTS.YT_CAPTIONS_TRACKLIST_CHANGED, this.#handleTrackListChanged);
         this.#player.addEventListener(EVENTS.YT_STATE_CHANGE, this.#handleStateChange);
 
@@ -97,7 +102,9 @@ class CaptionStyleHandler {
                 restoreAndRefreshRawKeys();
                 this.#hasAppliedStyle = false;
                 this.#applyAttempts = 0;
+                this.#captionsRestored = false;
                 this.#tryApplyStyle();
+                this.#tryRestoreCaptions();
             }
         });
     }
@@ -107,15 +114,40 @@ class CaptionStyleHandler {
         this.#saveTimeout = setTimeout(() => this.#saveStyle(), SAVE_DEBOUNCE_MS);
     };
 
+    #handleCaptionsChanged = () => {
+        this.#saveCaptionsEnabled();
+    };
+
     #handleTrackListChanged = () => {
         this.#applyAttempts = 0;
         this.#tryApplyStyle();
+        this.#tryRestoreCaptions();
     };
 
     #handleStateChange = () => {
         const state = this.#player?.getPlayerStateObject?.();
-        if (state?.isPlaying) this.#tryApplyStyle();
+        const videoId = this.#player?.getVideoData?.()?.video_id;
+
+        if (videoId !== this.#lastVideoId) {
+            this.#lastVideoId = videoId;
+            this.#captionsRestored = false;
+        }
+
+        if (state?.isPlaying) {
+            this.#tryApplyStyle();
+            this.#tryRestoreCaptions();
+            if (this.#captionsRestored) this.#saveCaptionsEnabled();
+        }
     };
+
+    #getTracklist() {
+        try {
+            const tracklist = this.#player?.getOption?.('captions', 'tracklist');
+            return Array.isArray(tracklist) ? tracklist : [];
+        } catch (e) {
+            return [];
+        }
+    }
 
     #saveStyle() {
         if (!configRead(CONFIG_KEYS.ENABLED)) return;
@@ -127,6 +159,37 @@ class CaptionStyleHandler {
             configWrite(CONFIG_KEYS.STYLE, JSON.parse(JSON.stringify(settings)));
         }
         restoreAndRefreshRawKeys();
+    }
+
+    #saveCaptionsEnabled() {
+        if (!configRead(CONFIG_KEYS.ENABLED)) return;
+
+        const captionsOn = this.#player?.isSubtitlesOn?.();
+        if (typeof captionsOn !== 'boolean') return;
+        if (!captionsOn && !this.#getTracklist().length) return;
+
+        if (captionsOn !== configRead(CONFIG_KEYS.CAPTIONS_ON)) {
+            configWrite(CONFIG_KEYS.CAPTIONS_ON, captionsOn);
+        }
+    }
+
+    #tryRestoreCaptions() {
+        if (this.#captionsRestored || !configRead(CONFIG_KEYS.ENABLED)) return;
+
+        if (configRead(CONFIG_KEYS.CAPTIONS_ON) !== true) {
+            this.#captionsRestored = true;
+            return;
+        }
+
+        if (!this.#getTracklist().length) return;
+
+        this.#captionsRestored = true;
+
+        try {
+            if (!this.#player.isSubtitlesOn()) this.#player.toggleSubtitlesOn();
+        } catch (e) {
+            console.warn('[CaptionStyle] Failed to restore captions:', e);
+        }
     }
 
     #tryApplyStyle = () => {

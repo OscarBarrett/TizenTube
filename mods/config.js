@@ -32,6 +32,7 @@ const defaultConfig = {
   enableShowOtherLanguages: false,
   enableCaptionStylePersistence: true,
   captionStyleSettings: null,
+  captionsEnabled: null,
   captionRawKeyBackups: {},
   showWelcomeToast: true,
   enablePreviousNextButtons: true,
