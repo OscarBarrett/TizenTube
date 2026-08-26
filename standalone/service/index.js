@@ -4,11 +4,23 @@
 
 const express = require('express');
 const app = express();
-const PORT = 8199;
-const SPOOF_MODE = 'cobalt'; // '', 'tizen' or 'cobalt'
+const PORT = Number(process.env.TT_PORT) || 8199;
+const SPOOF_MODE = process.env.TT_SPOOF_MODE !== undefined ? process.env.TT_SPOOF_MODE : 'cobalt'; // '', 'tizen' or 'cobalt'
 const SPOOF_TIZEN_VERSION = '8.0';
 const COBALT_VERSION = '24.lts.60.1032993-gold';
 const COBALT_MODEL_YEAR = '2022';
+const DEBUG_OVERLAY = true;
+const DEBUG_OVERLAY_SCRIPT = `<script>(function(){
+var box=document.createElement('div');box.id='tt-debug';box.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:rgba(120,0,0,.85);color:#fff;font:18px monospace;padding:8px;white-space:pre-wrap;max-height:60%;overflow:hidden;pointer-events:none';
+var lines=[];function log(m){lines.push(new Date().toISOString().substr(11,8)+' '+m);if(lines.length>16)lines.shift();box.textContent=lines.join('\\n');if(!box.parentNode&&document.body)document.body.appendChild(box);}
+window.__ttlog=log;
+window.addEventListener('error',function(e){if(e.target&&e.target!==window&&(e.target.src||e.target.href)){log('RESOURCE FAIL '+String(e.target.src||e.target.href).split('/').pop().slice(0,70));return;}log('ERROR '+(e.message||'')+' @'+String(e.filename||'').split('/').pop().slice(0,40)+':'+e.lineno);},true);
+window.addEventListener('unhandledrejection',function(e){log('REJECT '+String(e.reason&&e.reason.message||e.reason).slice(0,150));});
+document.addEventListener('DOMContentLoaded',function(){log('DOMContentLoaded ua='+navigator.userAgent.slice(0,70));});
+window.addEventListener('load',function(){log('load');});
+var n=0;setInterval(function(){n++;var app=document.querySelector('ytlr-app,#app,[class*=ytlr]');if(n%2===0)log('tick '+(n*2)+'s scripts='+document.scripts.length+' app='+(app?app.tagName.toLowerCase():'none')+' yttv='+(window._yttv?'y':'n')+' body='+(document.body?document.body.children.length:'-'));},2000);
+log('overlay ready');
+})();</script>`;
 const fetch = require('node-fetch');
 const http = require('http');
 const https = require('https');
@@ -169,6 +181,9 @@ app.all('*', (req, res) => {
                         text += `<script src="${userscript.userscriptUrl()}?ver=${Date.now()}"></script>`;
                         if (SPOOF_MODE && req.headers['user-agent']) {
                             text = text.replace('<head>', `<head><script>Object.defineProperty(navigator, 'userAgent', { get: function () { return ${JSON.stringify(spoofUserAgent(req.headers['user-agent']))}; } });</script>`);
+                        }
+                        if (DEBUG_OVERLAY) {
+                            text = text.replace('<head>', `<head>${DEBUG_OVERLAY_SCRIPT}`);
                         }
                     }
 
