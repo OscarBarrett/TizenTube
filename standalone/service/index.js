@@ -5,7 +5,10 @@
 const express = require('express');
 const app = express();
 const PORT = 8099;
+const SPOOF_MODE = 'tizen'; // '', 'tizen' or 'cobalt'
 const SPOOF_TIZEN_VERSION = '8.0';
+const COBALT_VERSION = '24.lts.60.1032993-gold';
+const COBALT_MODEL_YEAR = '2022';
 const fetch = require('node-fetch');
 const http = require('http');
 const https = require('https');
@@ -44,6 +47,16 @@ app.get('/tizentube/debugger', (req, res) => {
 });
 
 function spoofUserAgent(userAgent) {
+    if (SPOOF_MODE === 'cobalt') {
+        const tizenVersion = (userAgent.match(/Tizen (\d+(?:\.\d+)?)/) || [])[1] || '6.5';
+        const device = userAgent.match(/_TV_([A-Z0-9]+)\/([^ ]+) \(([^,]+), ([^,]+), ([^)]+)\)/) || [];
+        const chipset = device[1] || 'PONTUSM';
+        const firmware = device[2] || 'T-PTMUABC-1720.7';
+        const brand = device[3] || 'Samsung';
+        const model = device[4] || 'QA55QN85BAWXXY';
+        const connection = device[5] || 'Wired';
+        return `Mozilla/5.0 (SMART-TV; Linux; Tizen ${tizenVersion}) Cobalt/${COBALT_VERSION} (unlike Gecko) v8/8.8.278.17-jit gles Starboard/15, ${brand}_TV_${chipset}_${COBALT_MODEL_YEAR}/${firmware} (${brand}, ${model}, ${connection})`;
+    }
     return userAgent
         .replace(/Tizen \d+(\.\d+)?/, `Tizen ${SPOOF_TIZEN_VERSION}`)
         .replace(/\/\d+(\.\d+)? TV Safari/, `/${SPOOF_TIZEN_VERSION} TV Safari`);
@@ -81,7 +94,7 @@ app.all('*', (req, res) => {
     }
 
     headers['origin'] = 'https://www.youtube.com';
-    if (SPOOF_TIZEN_VERSION && headers['user-agent']) {
+    if (SPOOF_MODE && headers['user-agent']) {
         headers['user-agent'] = spoofUserAgent(headers['user-agent']);
     }
     if (headers['referer']) {
@@ -154,7 +167,7 @@ app.all('*', (req, res) => {
                     if (req.url.indexOf('/tv') === 0 && req.url.indexOf('/tv_config') === -1) {
                         // Insert the userscript for TizenTube
                         text += `<script src="${userscript.userscriptUrl()}?ver=${Date.now()}"></script>`;
-                        if (SPOOF_TIZEN_VERSION && req.headers['user-agent']) {
+                        if (SPOOF_MODE && req.headers['user-agent']) {
                             text = text.replace('<head>', `<head><script>Object.defineProperty(navigator, 'userAgent', { get: function () { return ${JSON.stringify(spoofUserAgent(req.headers['user-agent']))}; } });</script>`);
                         }
                     }
@@ -178,8 +191,8 @@ app.all('*', (req, res) => {
                     text = text.replace(/"\/\/clients1\.google\.com/g, `"${proxyPrefix}https://clients1.google.com`);
 
                     text = text.replace('Set(["www.youtube.com","accounts.google.com"]);', 'Set(["www.youtube.com", "accounts.google.com", "localhost"]);');
-                    text = text.replace(/:document\.location\.toString\(\)/g, ':document.location.toString().replace("http://localhost:8099", "https://www.youtube.com")');
-                    text = text.replace(/euri:[^,]+,/g, 'euri:document.location.toString().replace("http://localhost:8099", "https://www.youtube.com"),')
+                    text = text.replace(/:document\.location\.toString\(\)/g, ':document.location.toString().replace("http://localhost:' + PORT + '", "https://www.youtube.com")');
+                    text = text.replace(/euri:[^,]+,/g, 'euri:document.location.toString().replace("http://localhost:' + PORT + '", "https://www.youtube.com"),')
                     text = text.replace(/https:\/\/s\.youtube\.com/g, `${proxyPrefix}https://s.youtube.com`);
                     text = text.replace(/redirector.googlevideo.com/g, `${proxyPrefix}https://redirector.googlevideo.com`);
                     text = text.replace(/this.scheme="https"/, 'this.scheme="http"');
@@ -188,8 +201,8 @@ app.all('*', (req, res) => {
                     text = text.replace(/"\/\/yt3\.googleusercontent\.com/g, `"${proxyPrefix}https://yt3.googleusercontent.com`);
 
                     // In order to fix history not working
-                    text = text.replace(/=window\.location\.href;/, '=window.location.href.replace("http://localhost:8099", "https://www.youtube.com");')
-                    text = text.replace(/=document\.location\.href/, '=document.location.href.replace("http://localhost:8099", "https://www.youtube.com")')
+                    text = text.replace(/=window\.location\.href;/, '=window.location.href.replace("http://localhost:' + PORT + '", "https://www.youtube.com");')
+                    text = text.replace(/=document\.location\.href/, '=document.location.href.replace("http://localhost:' + PORT + '", "https://www.youtube.com")')
 
                     res.send(text);
                 });
@@ -215,4 +228,5 @@ app.listen(PORT, "127.0.0.1");
 
 // Start the DIAL server
 global.isTizenTube = true;
+global.tizenTubeDialPort = PORT - 4;
 require('../../dist/service.js');

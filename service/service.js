@@ -13,7 +13,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-const PORT = global.isTizenTube ? 8095 : 8085;
+const PORT = global.tizenTubeDialPort || (global.isTizenTube ? 8095 : 8085);
 const apps = {
     "YouTube": {
         name: "YouTube",
