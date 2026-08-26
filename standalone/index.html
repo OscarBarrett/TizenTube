@@ -73,14 +73,14 @@
             } catch (e) {
                 // Do nothing.
             }
+            // Cobalt experiment: always use the proxy path so the proxy's UA spoof and
+            // diagnostics apply (the injector path loads real youtube.com and bypasses them).
+            // Still poll getState so we only navigate once the service is listening.
             fetch('http://localhost:8199/tizentube/getState')
                 .then(r => r.json())
-                .then(res => {
-                    if (res.canConnectToDaemon && !res.isConnecting) {
-                        fetch(`http://localhost:8199/tizentube/debugger${args ? `?${args}` : ''}`);
-                        tizen.application.getCurrentApplication().exit();
-                    } else if (!res.canConnectToDaemon) location.href = `http://localhost:8199/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8195%2Fdial%2Fapps%2FYouTube${args ? `&${args}` : ''}`
-                }).catch(() => window.location.reload());
+                .then(() => {
+                    location.href = `http://localhost:8199/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8195%2Fdial%2Fapps%2FYouTube${args ? `&${args}` : ''}`
+                }).catch(() => setTimeout(useInjectorOrProxy, 200));
         }
 
         tizen.application.launchAppControl(
