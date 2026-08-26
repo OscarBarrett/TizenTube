@@ -215,10 +215,18 @@ app.all('*', (req, res) => {
         });
 });
 
+// Keep the proxy alive even if the DIAL/SSDP server or a stray async error throws.
+process.on('uncaughtException', (e) => { try { console.error('uncaughtException', e && e.stack || e); } catch (_) {} });
+process.on('unhandledRejection', (e) => { try { console.error('unhandledRejection', e && e.stack || e); } catch (_) {} });
+
 userscript.refreshVersion();
 app.listen(PORT, "127.0.0.1");
 
-// Start the DIAL server
-global.isTizenTube = true;
-global.tizenTubeDialPort = PORT - 4;
-require('../../dist/service.js');
+// Start the DIAL server (optional; must never crash the proxy).
+try {
+    global.isTizenTube = true;
+    global.tizenTubeDialPort = PORT - 4;
+    require('../../dist/service.js');
+} catch (e) {
+    try { console.error('DIAL server failed to start', e && e.stack || e); } catch (_) {}
+}
