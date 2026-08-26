@@ -11,6 +11,7 @@ const http = require('http');
 const https = require('https');
 const URL = require('url');
 const injector = require('./injector.js');
+const userscript = require('./userscript.js');
 
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -97,7 +98,10 @@ app.all('*', (req, res) => {
         redirect: 'manual'
     };
 
-    fetch(targetUrl, fetchOptions)
+    const isTvPage = req.url.indexOf('/tv') === 0 && req.url.indexOf('/tv_config') === -1;
+    const ready = isTvPage ? userscript.refreshVersion() : Promise.resolve();
+
+    ready.then(() => fetch(targetUrl, fetchOptions))
         .then((response) => {
             if (req.method === 'OPTIONS') {
                 res.status(200);
@@ -149,7 +153,7 @@ app.all('*', (req, res) => {
                 return response.text().then((text) => {
                     if (req.url.indexOf('/tv') === 0 && req.url.indexOf('/tv_config') === -1) {
                         // Insert the userscript for TizenTube
-                        text += `<script src="https://cdn.jsdelivr.net/npm/@oscarbarrett/tizentube/dist/userScript.js?ver=${Date.now()}"></script>`;
+                        text += `<script src="${userscript.userscriptUrl()}?ver=${Date.now()}"></script>`;
                         if (SPOOF_TIZEN_VERSION && req.headers['user-agent']) {
                             text = text.replace('<head>', `<head><script>Object.defineProperty(navigator, 'userAgent', { get: function () { return ${JSON.stringify(spoofUserAgent(req.headers['user-agent']))}; } });</script>`);
                         }
@@ -206,6 +210,7 @@ app.all('*', (req, res) => {
         });
 });
 
+userscript.refreshVersion();
 app.listen(PORT, "127.0.0.1");
 
 // Start the DIAL server
