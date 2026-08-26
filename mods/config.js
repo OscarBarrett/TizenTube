@@ -33,6 +33,7 @@ const defaultConfig = {
   enableCaptionStylePersistence: true,
   captionStyleSettings: null,
   captionsEnabled: null,
+  captionsOnCommand: null,
   captionRawKeyBackups: {},
   showWelcomeToast: true,
   enablePreviousNextButtons: true,
